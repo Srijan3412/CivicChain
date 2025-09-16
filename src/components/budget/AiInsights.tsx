@@ -48,22 +48,22 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
         remaining: Number(item.remaining_amt) || 0,
       }));
 
-      const validBudget = transformedBudget.filter(
-        (item) => item.allocated > 0 || item.spent > 0 || item.remaining > 0
-      );
+      // After: Keep all rows (even if zero) so Gemini knows the budget is zero
+        const validBudget = transformedBudget;
 
-      if (validBudget.length === 0) {
-        toast({
-          variant: "destructive",
-          title: "No Valid Data",
-          description: "All budget amounts are zero. Please import valid data first.",
-        });
-        setLoading(false);
-        return;
-      }
+
+       if (validBudget.length === 0) {
+         toast({
+           variant: "destructive",
+           title: "No Valid Data",
+           description: "All budget amounts are zero. Please import valid data first.",
+         });
+         setLoading(false);
+         return;
+       }
 
       // ✅ 2. Build a Strong AI Prompt
-      const aiPrompt = `
+  const aiPrompt = `
 You are an expert municipal budget analyst. Analyze the following budget data 
 and summarize it for a general citizen. Your output must be:
 
@@ -72,10 +72,12 @@ and summarize it for a general citizen. Your output must be:
 - Mention total allocation vs total spending.
 - Flag top categories with overspending (>120%) or underspending (<70%).
 - Call out any categories with 0 spending or unusual patterns.
+- If all amounts are zero, simply say: "No spending data available for this department. All allocations are zero."
 
 Budget Data (JSON):
 ${JSON.stringify(validBudget, null, 2)}
 `;
+
 
       console.log("Sending to Edge Function:", aiPrompt);
 
