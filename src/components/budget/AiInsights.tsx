@@ -5,23 +5,22 @@ import { Brain, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+// ✅ Match your actual table columns
 interface BudgetItem {
-  id: string;
+  id?: string;
+  account: string;
   glcode: string;
-  account_budget: number;
+  account_b: string;        // ✅ descriptive name of expense
+  budget_a: number;
   used_amt: number;
   remaining_amt: number;
-  created_at?: string;
 }
 
 interface AiInsightsProps {
   budgetData: BudgetItem[];
-  department: string;
-  ward: string; // ✅ added
-  year?: number;
 }
 
-const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department, ward, year }) => {
+const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
   const [insights, setInsights] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -39,16 +38,19 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department, ward, y
     setLoading(true);
 
     try {
+      // ✅ Transform your data to send to Edge Function
       const transformedBudget = budgetData.map((item) => ({
+        account: item.account,
         glcode: item.glcode,
-        account_budget: Number(item.account_budget) || 0,
+        description: item.account_b,
+        budget_a: Number(item.budget_a) || 0,
         used_amt: Number(item.used_amt) || 0,
         remaining_amt: Number(item.remaining_amt) || 0,
       }));
 
-      // ✅ filter out completely empty rows
+      // ✅ Remove completely empty rows (where all numbers are 0)
       const validBudget = transformedBudget.filter(
-        (item) => item.account_budget !== 0 || item.used_amt !== 0 || item.remaining_amt !== 0
+        (item) => item.budget_a !== 0 || item.used_amt !== 0 || item.remaining_amt !== 0
       );
 
       if (validBudget.length === 0) {
@@ -61,21 +63,12 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department, ward, y
         return;
       }
 
-      const currentYear = year || new Date().getFullYear();
+      console.log("Payload sent to get-ai-insights:", { budgetData: validBudget });
 
-      console.log("Payload sent to get-ai-insights:", {
-        department,
-        ward,
-        year: currentYear,
-        budgetData: validBudget,
-      });
-
+      // ✅ Call your Supabase Edge Function
       const { data, error } = await supabase.functions.invoke("get-ai-insights", {
         body: {
-          department,
-          ward,
-          year: currentYear,
-          budgetData: validBudget,
+          budgetData: validBudget, // ✅ no year, no ward
         },
       });
 
