@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    const geminiApiKey = Deno.env.get('9d7ef6a5f8ec5842d12d838fb59728a37c3dcb5469646');
     
     if (!geminiApiKey) {
       return new Response(
@@ -25,11 +25,11 @@ serve(async (req) => {
       );
     }
 
-    const { budgetData, ward, year } = await req.json();
+    const { budgetData, department } = await req.json();
 
-    if (!budgetData || !ward || !year) {
+    if (!budgetData || !department) {
       return new Response(
-        JSON.stringify({ error: 'Budget data, ward, and year are required' }),
+        JSON.stringify({ error: 'Budget data and department are required' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -45,12 +45,12 @@ serve(async (req) => {
     }));
 
     const prompt = `You are an AI analyzing municipal budget data for transparency.
-Data for Ward ${ward}, Year ${year}: 
+Data for Department: ${department}
 ${JSON.stringify(formattedData, null, 2)}
 
 Provide:
-- 3-line summary of key spending
-- Highlight anomalies or overspending
+- 3-line summary of key spending for this department
+- Highlight anomalies or overspending within categories
 - Suggest optimization areas
 
 Respond in plain English, no code blocks.`;
