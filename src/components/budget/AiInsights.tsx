@@ -38,7 +38,7 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
     setInsights(""); // Clear previous results when re-running
 
     try {
-      // ✅ 1. Transform + Filter Data
+      // ✅ Transform the data (even if zeros)
       const transformedBudget = budgetData.map((item) => ({
         account: item.account,
         glcode: item.glcode,
@@ -48,22 +48,8 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
         remaining: Number(item.remaining_amt) || 0,
       }));
 
-      // After: Keep all rows (even if zero) so Gemini knows the budget is zero
-        const validBudget = transformedBudget;
-
-
-       if (validBudget.length === 0) {
-         toast({
-           variant: "destructive",
-           title: "No Valid Data",
-           description: "All budget amounts are zero. Please import valid data first.",
-         });
-         setLoading(false);
-         return;
-       }
-
-      // ✅ 2. Build a Strong AI Prompt
-  const aiPrompt = `
+      // ✅ Build AI prompt
+      const aiPrompt = `
 You are an expert municipal budget analyst. Analyze the following budget data 
 and summarize it for a general citizen. Your output must be:
 
@@ -75,13 +61,12 @@ and summarize it for a general citizen. Your output must be:
 - If all amounts are zero, simply say: "No spending data available for this department. All allocations are zero."
 
 Budget Data (JSON):
-${JSON.stringify(validBudget, null, 2)}
+${JSON.stringify(transformedBudget, null, 2)}
 `;
-
 
       console.log("Sending to Edge Function:", aiPrompt);
 
-      // ✅ 3. Call Supabase Edge Function
+      // ✅ Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke("get-ai-insights", {
         body: { prompt: aiPrompt },
       });
@@ -98,18 +83,16 @@ ${JSON.stringify(validBudget, null, 2)}
           description: "Insights generated successfully for this department.",
         });
       } else {
-        toast({
-          variant: "destructive",
-          title: "No Insights Generated",
-          description: "The AI did not return any output. Try again or check the function logs.",
-        });
+        setInsights("No insights were generated.");
+        console.warn("No insights returned from edge function.");
       }
     } catch (err) {
       console.error("Error getting AI insights:", err);
       toast({
         variant: "destructive",
         title: "Analysis Failed",
-        description: "Something went wrong while generating AI insights. Check server logs.",
+        description:
+          "Something went wrong while generating AI insights. Check your server logs for details.",
       });
     } finally {
       setLoading(false);
