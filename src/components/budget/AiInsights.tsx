@@ -35,9 +35,10 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
     }
 
     setLoading(true);
+    setInsights(""); // Clear previous results when re-running
 
     try {
-      // ✅ Step 1: Transform Data
+      // ✅ 1. Transform + Filter Data
       const transformedBudget = budgetData.map((item) => ({
         account: item.account,
         glcode: item.glcode,
@@ -48,7 +49,7 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
       }));
 
       const validBudget = transformedBudget.filter(
-        (item) => item.allocated !== 0 || item.spent !== 0 || item.remaining !== 0
+        (item) => item.allocated > 0 || item.spent > 0 || item.remaining > 0
       );
 
       if (validBudget.length === 0) {
@@ -61,32 +62,32 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
         return;
       }
 
-      // ✅ Step 2: Build AI Prompt
+      // ✅ 2. Build a Strong AI Prompt
       const aiPrompt = `
 You are an expert municipal budget analyst. Analyze the following budget data 
-and summarize it for a general citizen. Your output should be short, clear, and 
-actionable — avoid technical jargon.
+and summarize it for a general citizen. Your output must be:
 
-Please include:
-- Total allocation vs total spending
-- Mention top overspending or underspending categories
-- Highlight anomalies (e.g. categories with 0 spend or over 120% utilization)
-- Write in a citizen-friendly way (avoid bureaucratic language)
+- Short (max 5 sentences), clear, and actionable.
+- Avoid technical jargon or bureaucratic terms.
+- Mention total allocation vs total spending.
+- Flag top categories with overspending (>120%) or underspending (<70%).
+- Call out any categories with 0 spending or unusual patterns.
 
-Data (JSON):
+Budget Data (JSON):
 ${JSON.stringify(validBudget, null, 2)}
 `;
 
-      console.log("Payload sent to get-ai-insights:", { aiPrompt });
+      console.log("Sending to Edge Function:", aiPrompt);
 
-      // ✅ Step 3: Call Supabase Edge Function
+      // ✅ 3. Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke("get-ai-insights", {
-        body: {
-          prompt: aiPrompt,
-        },
+        body: { prompt: aiPrompt },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Function Error:", error);
+        throw new Error(error.message || "Failed to call AI function");
+      }
 
       if (data?.insights) {
         setInsights(data.insights);
@@ -98,7 +99,7 @@ ${JSON.stringify(validBudget, null, 2)}
         toast({
           variant: "destructive",
           title: "No Insights Generated",
-          description: "The AI function returned no insights.",
+          description: "The AI did not return any output. Try again or check the function logs.",
         });
       }
     } catch (err) {
@@ -106,7 +107,7 @@ ${JSON.stringify(validBudget, null, 2)}
       toast({
         variant: "destructive",
         title: "Analysis Failed",
-        description: "Failed to generate AI insights. Please check server logs.",
+        description: "Something went wrong while generating AI insights. Check server logs.",
       });
     } finally {
       setLoading(false);
@@ -145,8 +146,8 @@ ${JSON.stringify(validBudget, null, 2)}
 
           {!insights && !loading && (
             <p className="text-muted-foreground text-sm">
-              Click "Analyze Budget with AI" to get department-wise spending
-              patterns, anomalies, and citizen-friendly insights.
+              Click <b>“Analyze Budget with AI”</b> to see department-wise spending
+              patterns, overspending/underspending alerts, and anomalies in plain language.
             </p>
           )}
         </div>
