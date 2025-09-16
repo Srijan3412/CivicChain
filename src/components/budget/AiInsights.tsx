@@ -5,12 +5,11 @@ import { Brain, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-// ✅ Match your actual table columns
 interface BudgetItem {
   id?: string;
   account: string;
   glcode: string;
-  account_b: string;        // ✅ descriptive name of expense
+  account_b: string;
   budget_a: number;
   used_amt: number;
   remaining_amt: number;
@@ -38,19 +37,18 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
     setLoading(true);
 
     try {
-      // ✅ Transform your data to send to Edge Function
+      // ✅ Step 1: Transform Data
       const transformedBudget = budgetData.map((item) => ({
         account: item.account,
         glcode: item.glcode,
         description: item.account_b,
-        budget_a: Number(item.budget_a) || 0,
-        used_amt: Number(item.used_amt) || 0,
-        remaining_amt: Number(item.remaining_amt) || 0,
+        allocated: Number(item.budget_a) || 0,
+        spent: Number(item.used_amt) || 0,
+        remaining: Number(item.remaining_amt) || 0,
       }));
 
-      // ✅ Remove completely empty rows (where all numbers are 0)
       const validBudget = transformedBudget.filter(
-        (item) => item.budget_a !== 0 || item.used_amt !== 0 || item.remaining_amt !== 0
+        (item) => item.allocated !== 0 || item.spent !== 0 || item.remaining !== 0
       );
 
       if (validBudget.length === 0) {
@@ -63,12 +61,28 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
         return;
       }
 
-      console.log("Payload sent to get-ai-insights:", { budgetData: validBudget });
+      // ✅ Step 2: Build AI Prompt
+      const aiPrompt = `
+You are an expert municipal budget analyst. Analyze the following budget data 
+and summarize it for a general citizen. Your output should be short, clear, and 
+actionable — avoid technical jargon.
 
-      // ✅ Call your Supabase Edge Function
+Please include:
+- Total allocation vs total spending
+- Mention top overspending or underspending categories
+- Highlight anomalies (e.g. categories with 0 spend or over 120% utilization)
+- Write in a citizen-friendly way (avoid bureaucratic language)
+
+Data (JSON):
+${JSON.stringify(validBudget, null, 2)}
+`;
+
+      console.log("Payload sent to get-ai-insights:", { aiPrompt });
+
+      // ✅ Step 3: Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke("get-ai-insights", {
         body: {
-          budgetData: validBudget, // ✅ no year, no ward
+          prompt: aiPrompt,
         },
       });
 
@@ -131,8 +145,8 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData }) => {
 
           {!insights && !loading && (
             <p className="text-muted-foreground text-sm">
-              Click "Analyze Budget with AI" to get insights on spending patterns,
-              anomalies, and potential optimizations for this department.
+              Click "Analyze Budget with AI" to get department-wise spending
+              patterns, anomalies, and citizen-friendly insights.
             </p>
           )}
         </div>
