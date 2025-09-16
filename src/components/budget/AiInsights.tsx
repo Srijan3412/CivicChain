@@ -5,23 +5,23 @@ import { Brain, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-// ✅ Match Supabase "municipal_budget" table structure
 interface BudgetItem {
   id: string;
-  glcode: string;              // ✅ maps to table column "glcode"
-  account_budget: number;      // ✅ maps to table column "account_budget"
-  used_amt: number;            // ✅ maps to table column "used_amt"
-  remaining_amt: number;       // ✅ maps to table column "remaining_amt"
-  created_at?: string;         // optional - used to infer year if needed
+  glcode: string;
+  account_budget: number;
+  used_amt: number;
+  remaining_amt: number;
+  created_at?: string;
 }
 
 interface AiInsightsProps {
   budgetData: BudgetItem[];
-  department: string; // ✅ derived from account/selected department
-  year?: number; // ✅ fallback to current year
+  department: string;
+  ward: string; // ✅ added
+  year?: number;
 }
 
-const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department, year }) => {
+const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department, ward, year }) => {
   const [insights, setInsights] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -39,7 +39,6 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department, year })
     setLoading(true);
 
     try {
-      // ✅ Transform data to match Edge Function expectation
       const transformedBudget = budgetData.map((item) => ({
         glcode: item.glcode,
         account_budget: Number(item.account_budget) || 0,
@@ -47,19 +46,36 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department, year })
         remaining_amt: Number(item.remaining_amt) || 0,
       }));
 
+      // ✅ filter out completely empty rows
+      const validBudget = transformedBudget.filter(
+        (item) => item.account_budget !== 0 || item.used_amt !== 0 || item.remaining_amt !== 0
+      );
+
+      if (validBudget.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "No Valid Data",
+          description: "All budget amounts are zero. Please import valid data first.",
+        });
+        setLoading(false);
+        return;
+      }
+
       const currentYear = year || new Date().getFullYear();
 
       console.log("Payload sent to get-ai-insights:", {
         department,
+        ward,
         year: currentYear,
-        budgetData: transformedBudget,
+        budgetData: validBudget,
       });
 
       const { data, error } = await supabase.functions.invoke("get-ai-insights", {
         body: {
           department,
+          ward,
           year: currentYear,
-          budgetData: transformedBudget,
+          budgetData: validBudget,
         },
       });
 
