@@ -3,19 +3,17 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  // Handle preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // ✅ Correct way to load secret
-    const deepseekApiKey = "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";
+    // ✅ Securely load API key from environment
+    const deepseekApiKey = Deno.env.get("DEEPSEEK_API_KEY");
 
     if (!deepseekApiKey) {
       return new Response(
