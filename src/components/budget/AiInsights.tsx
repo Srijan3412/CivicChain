@@ -8,10 +8,12 @@ import { useToast } from '@/hooks/use-toast';
 
 interface BudgetItem {
   id: string;
-  category: string;
-  amount: number;
-  ward: number;
-  year: number;
+  account: string;
+  glcode: string;
+  account_budget: string;
+  budget_a: number;
+  used_amt: number;
+  remaining_amt: number;
 }
 
 interface AiInsightsProps {
@@ -25,41 +27,69 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department }) => {
   const { toast } = useToast();
 
   const getAiInsights = async () => {
-    if (!budgetData || budgetData.length === 0) {
+    if (!budgetData?.length) {
       toast({
-        variant: "destructive",
-        title: "No Data",
-        description: "Please fetch budget data first before analyzing.",
+        variant: 'destructive',
+        title: 'No Data',
+        description: 'Please fetch budget data first before analyzing.',
       });
       return;
     }
 
     setLoading(true);
-    
+
     try {
+      // Format data to ensure numeric fields are numbers
+      const formattedData = budgetData.map((item) => ({
+        id: item.id,
+        account: item.account,
+        glcode: item.glcode,
+        account_budget: item.account_budget,
+        budget_a: Number(item.budget_a) || 0,
+        used_amt: Number(item.used_amt) || 0,
+        remaining_amt: Number(item.remaining_amt) || 0,
+      }));
+
+      console.log('📤 Sending data to AI function:', formattedData);
+
       const { data, error } = await supabase.functions.invoke('get-ai-insights', {
-        body: {
-          budgetData,
-          department
-        }
+        body: { budgetData: formattedData, department },
       });
 
       if (error) {
-        throw error;
+        console.error('❌ Supabase Edge Function error:', error);
+        throw new Error(error.message || 'Unknown edge function error');
+      }
+
+      if (!data?.insights) {
+        throw new Error('AI did not return any insights.');
       }
 
       setInsights(data.insights);
+
       toast({
-        title: "AI Analysis Complete",
-        description: "Generated insights for your budget data.",
+        title: 'AI Analysis Complete',
+        description: 'Generated insights for your budget data.',
       });
-    } catch (error) {
-      console.error('Error getting AI insights:', error);
-      toast({
-        variant: "destructive",
-        title: "Analysis Failed",
-        description: "Failed to generate AI insights. Please try again.",
-      });
+
+    } catch (err: any) {
+      console.error('💥 Error getting AI insights:', err);
+
+      // 🔥 Quota limit handling
+      if (err.message?.includes('429') || err.status === 429) {
+        toast({
+          variant: 'destructive',
+          title: 'Quota Limit Reached',
+          description: 'You have reached your Gemini API request limit. Please try again later.',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Analysis Failed',
+          description:
+            err?.message || 'Failed to generate AI insights. Please try again.',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -75,28 +105,31 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department }) => {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <Button 
-            onClick={getAiInsights} 
-            disabled={loading || !budgetData.length}
+          <Button
+            onClick={getAiInsights}
+            disabled={loading || !budgetData?.length}
             className="w-full md:w-auto"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {loading ? 'Analyzing...' : 'Analyze Budget with AI'}
           </Button>
-          
+
           {insights && (
             <div className="mt-6 p-4 bg-accent/20 rounded-lg border border-accent animate-in slide-in-from-bottom-4 duration-500">
-              <h4 className="font-semibold mb-2 text-accent-foreground">AI Analysis Results:</h4>
+              <h4 className="font-semibold mb-2 text-accent-foreground">
+                AI Analysis Results:
+              </h4>
               <div className="whitespace-pre-wrap text-sm text-foreground leading-relaxed">
                 {insights}
               </div>
             </div>
           )}
-          
+
           {!insights && !loading && (
             <p className="text-muted-foreground text-sm">
-              Click the analyze button to get AI-powered insights about spending patterns, 
-              anomalies, and optimization opportunities for this department's budget.
+              Click the button above to get AI-powered insights about allocated
+              budget, spending usage, and remaining amounts. The analysis will
+              also highlight anomalies and optimization opportunities.
             </p>
           )}
         </div>
