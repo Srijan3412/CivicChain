@@ -13,7 +13,9 @@ serve(async (req) => {
 
   try {
     // ✅ Securely load API key from environment
-    const deepseekApiKey = Deno.env.get("DEEPSEEK_API_KEY");
+const deepseekApiKey = Deno.env.get("DEEPSEEK_API_KEY");
+
+
 
     if (!deepseekApiKey) {
       return new Response(
