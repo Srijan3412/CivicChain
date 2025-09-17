@@ -12,14 +12,12 @@ serve(async (req) => {
   }
 
   try {
-    // ✅ Securely load API key from environment
-    const deepseekApiKey = Deno.env.get("DEEPSEEK_API_KEY");
+    // ✅ Securely load Gemini API key from environment
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
-
-
-    if (!deepseekApiKey) {
+    if (!GEMINI_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "DeepSeek API key not configured" }),
+        JSON.stringify({ error: "Gemini API key not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -33,7 +31,7 @@ serve(async (req) => {
       );
     }
 
-    // Format data
+    // ✅ Format data
     const formattedData = budgetData.map((item: any) => ({
       category: item.category,
       amount: item.amount,
@@ -58,36 +56,35 @@ Provide:
 
 Respond in plain English, no code blocks.`;
 
-    console.log("📤 Sending request to DeepSeek API...");
+    console.log("📤 Sending request to Gemini API...");
 
-    // ✅ DeepSeek API call
-    const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${deepseekApiKey}`,
+    // ✅ Gemini API call
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+        }),
       },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-        max_tokens: 500,
-      }),
-    });
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("❌ DeepSeek API error:", errorText);
+      console.error("❌ Gemini API error:", errorText);
       return new Response(
-        JSON.stringify({ error: "Failed to get AI insights from DeepSeek", details: errorText }),
+        JSON.stringify({ error: "Failed to get AI insights from Gemini", details: errorText }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const data = await response.json();
-    console.log("✅ DeepSeek API response:", data);
+    console.log("✅ Gemini API response:", data);
 
-    const insights = data.choices?.[0]?.message?.content || "No insights returned.";
+    // Gemini's response format: data.candidates[0].content.parts[0].text
+    const insights =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No insights returned.";
 
     return new Response(JSON.stringify({ insights }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
