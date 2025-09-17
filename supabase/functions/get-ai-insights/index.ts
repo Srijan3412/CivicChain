@@ -2,26 +2,25 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const geminiApiKey = Deno.env.get('9d7ef6a5f8ec5842d12d838fb59728a37c3dcb5469646');
-    
-    if (!geminiApiKey) {
+    // ✅ Correct way to load secret
+    const deepseekApiKey = "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";
+
+    if (!deepseekApiKey) {
       return new Response(
-        JSON.stringify({ error: 'Gemini API key not configured' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        JSON.stringify({ error: "DeepSeek API key not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -29,24 +28,28 @@ serve(async (req) => {
 
     if (!budgetData || !department) {
       return new Response(
-        JSON.stringify({ error: 'Budget data and department are required' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        JSON.stringify({ error: "Budget data and department are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Format budget data for AI analysis
+    // Format data
     const formattedData = budgetData.map((item: any) => ({
       category: item.category,
       amount: item.amount,
-      percentage: ((item.amount / budgetData.reduce((sum: number, b: any) => sum + Number(b.amount), 0)) * 100).toFixed(1)
+      percentage: (
+        (item.amount /
+          budgetData.reduce(
+            (sum: number, b: any) => sum + Number(b.amount),
+            0,
+          )) *
+        100
+      ).toFixed(1),
     }));
 
     const prompt = `You are an AI analyzing municipal budget data for transparency.
-Data for Department: ${department}
-${JSON.stringify(formattedData, null, 2)}
+Department: ${department}
+Budget Data: ${JSON.stringify(formattedData, null, 2)}
 
 Provide:
 - 3-line summary of key spending for this department
@@ -55,56 +58,45 @@ Provide:
 
 Respond in plain English, no code blocks.`;
 
-    console.log('Sending request to Gemini API...');
+    console.log("📤 Sending request to DeepSeek API...");
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
+    // ✅ DeepSeek API call
+    const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${deepseekApiKey}`,
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        }
+        model: "deepseek-chat",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        max_tokens: 500,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error:', errorText);
+      console.error("❌ DeepSeek API error:", errorText);
       return new Response(
-        JSON.stringify({ error: 'Failed to get AI insights' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        JSON.stringify({ error: "Failed to get AI insights from DeepSeek", details: errorText }),
+        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const data = await response.json();
-    console.log('Gemini API response:', data);
+    console.log("✅ DeepSeek API response:", data);
 
-    const insights = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to generate insights';
+    const insights = data.choices?.[0]?.message?.content || "No insights returned.";
 
     return new Response(JSON.stringify({ insights }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error('Error in get-ai-insights function:', error);
+    console.error("💥 Edge function error:", error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      JSON.stringify({ error: "Internal server error", details: String(error) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
