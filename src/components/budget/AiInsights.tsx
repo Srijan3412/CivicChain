@@ -11,9 +11,9 @@ interface BudgetItem {
   account: string;
   glcode: string;
   account_budget: string;
-  budget_a: number;
-  used_amt: number;
-  remaining_amt: number;
+  budget_a: number | string;
+  used_amt: number | string;
+  remaining_amt: number | string;
 }
 
 interface AiInsightsProps {
@@ -36,10 +36,20 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department }) => {
       return;
     }
 
+    if (!department) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing Department',
+        description: 'Please select a department before analyzing.',
+      });
+      return;
+    }
+
     setLoading(true);
+    setInsights(''); // clear old insights before new request
 
     try {
-      // Format data to ensure numeric fields are numbers
+      // ✅ Ensure numeric fields are converted properly
       const formattedData = budgetData.map((item) => ({
         id: item.id,
         account: item.account,
@@ -50,7 +60,7 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department }) => {
         remaining_amt: Number(item.remaining_amt) || 0,
       }));
 
-      console.log('📤 Sending data to AI function:', formattedData);
+      console.log('📤 Sending data to AI function:', { department, formattedData });
 
       const { data, error } = await supabase.functions.invoke('get-ai-insights', {
         body: { budgetData: formattedData, department },
@@ -71,23 +81,22 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department }) => {
         title: 'AI Analysis Complete',
         description: 'Generated insights for your budget data.',
       });
-
     } catch (err: any) {
       console.error('💥 Error getting AI insights:', err);
 
-      // 🔥 Quota limit handling
-      if (err.message?.includes('429') || err.status === 429) {
+      // ✅ Handle quota limit errors more robustly
+      if (err?.message?.includes('429') || err?.status === 429) {
         toast({
           variant: 'destructive',
           title: 'Quota Limit Reached',
-          description: 'You have reached your Gemini API request limit. Please try again later.',
+          description:
+            'You have reached your Gemini API request limit. Please try again later.',
         });
       } else {
         toast({
           variant: 'destructive',
           title: 'Analysis Failed',
-          description:
-            err?.message || 'Failed to generate AI insights. Please try again.',
+          description: err?.message || 'Failed to generate AI insights. Please try again.',
         });
       }
     } finally {
