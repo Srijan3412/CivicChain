@@ -46,21 +46,21 @@ const AiInsights: React.FC<AiInsightsProps> = ({ budgetData, department }) => {
     }
 
     setLoading(true);
-    setInsights(''); // clear previous result
+    setInsights('');
 
     try {
-      // ✅ Convert numeric fields to numbers safely
+      // ✅ Clean numbers by removing commas before converting
       const formattedData = budgetData.map((item) => ({
         id: item.id,
         account: item.account,
         glcode: item.glcode,
         account_budget: item.account_budget,
-        budget_a: Number(item.budget_a) || 0,
-        used_amt: Number(item.used_amt) || 0,
-        remaining_amt: Number(item.remaining_amt) || 0,
+        budget_a: Number(String(item.budget_a).replace(/,/g, '')) || 0,
+        used_amt: Number(String(item.used_amt).replace(/,/g, '')) || 0,
+        remaining_amt: Number(String(item.remaining_amt).replace(/,/g, '')) || 0,
       }));
 
-      console.log('📤 Sending to AI Edge Function:', JSON.stringify({ department, budgetData: formattedData }, null, 2));
+      console.log('📊 Cleaned Data for AI:', formattedData);
 
       const { data, error } = await supabase.functions.invoke('get-ai-insights', {
         body: { budgetData: formattedData, department },
